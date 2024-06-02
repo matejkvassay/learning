@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mkvlib"
+authors = [
+    { name = "Matej Kvassay", email = "matejkvassay5@gmail.com" }
+]
+description = "ML lib"
+version = "0.0.1"
+readme = "README.md"
+requires-python = ">=3.7"
+dependencies = [
+    "torch",
+    "numpy",
+    "pytest",
+    "scikit-learn"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
