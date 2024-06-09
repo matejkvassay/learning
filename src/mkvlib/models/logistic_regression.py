@@ -15,7 +15,6 @@ class LogisticRegression:
 
     def train(self, X, y):
         y_hat = self.forward(X)
-        print(y_hat.shape)
         loss = self.loss_f(y, y_hat)
         loss.backward()
         with torch.no_grad():
