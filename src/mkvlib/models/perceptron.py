@@ -25,14 +25,11 @@ class Perceptron:
 
     def train(self, X, y, n_epochs, score_func=f1_score, X_val=None, y_val=None):
         for ep in range(n_epochs):
-            # fit
             shuffled_indices = torch.randperm(X.shape[0])
             for i in shuffled_indices:
                 self._update_weights(X[i], y[i])
-            # eval
             score = self._score(score_func, X, y)
             score_val = None
             if X_val is not None and y_val is not None:
                 score_val = self._score(score_func, X_val, y_val)
-
             yield {"epoch": ep + 1, "score": score, "score_val": score_val}
