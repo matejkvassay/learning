@@ -15,7 +15,8 @@ dependencies = [
     "torch",
     "numpy",
     "pytest",
-    "scikit-learn"
+    "scikit-learn",
+    "unidecode"
 ]
 
 [tool.setuptools.packages.find]
