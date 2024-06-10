@@ -36,7 +36,7 @@ def find_merge_rule(tokens):
     for tok in tokens:
         for i in range(0, len(tok) - 1):
             freq[tok[i: i + 2]] += 1
-    mr=max(freq.items(), key=lambda x: x[1])[0]
+    mr = max(freq.items(), key=lambda x: x[1])[0]
     e = perf_counter()
     print(f'Merge rule search time: {e - s}s')
     return mr
@@ -67,10 +67,11 @@ text = normalize(text)
 tokens = pre_split(text, pattern=' ')
 chars, char_freq = unique_chars(text)
 merge_rules = []
-VOCAB_SIZE = 10000
+VOCAB_SIZE = 1000
 while len(chars) + len(merge_rules) < VOCAB_SIZE:
     mr = find_merge_rule(tokens)
     merge_rules.append(mr)
     tokens = apply_merge_rule(tokens, mr)
     print(mr)
 print(tokens[:1000])
+print(merge_rules)
