@@ -45,3 +45,5 @@ class BigramModel(nn.Module):
 
 m = BigramModel(len(tokenizer))
 print(m(x, y))
+
+print(m.parameters())
