@@ -25,6 +25,9 @@ class CharTokenizer:
     def inverse_transform(self, token_ids: Iterable[int]) -> str:
         return ''.join(map(self._int_to_char, token_ids))
 
+    def __len__(self):
+        return len(self.enc_map)
+
     def _freeze(self):
         if self.oov_char not in self.enc_map.keys():
             self._char_to_int(self.oov_char)
