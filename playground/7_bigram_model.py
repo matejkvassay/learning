@@ -38,13 +38,14 @@ class BigramModel(nn.Module):
         return logits, loss
 
     def generate(self, idx, max_new_tokens):
-        for _ in range(max_new_tokens):
-            logits, _ = self(idx)
-            logits = logits[:, -1, :]
-            probs = F.softmax(logits, dim=-1)
-            idx_next = torch.multinomial(probs, num_samples=1)
-            idx = torch.cat((idx, idx_next), dim=1)
-        return idx
+        with torch.no_grad():
+            for _ in range(max_new_tokens):
+                logits, _ = self(idx)
+                logits = logits[:, -1, :]
+                probs = F.softmax(logits, dim=-1)
+                idx_next = torch.multinomial(probs, num_samples=1)
+                idx = torch.cat((idx, idx_next), dim=1)
+            return idx
 
 
 m = BigramModel(len(tokenizer))
@@ -57,7 +58,7 @@ for ep in range(N_EPOCHS):
     optim.step()
     print(f'ep: {ep} loss:{loss.item()}')
 
-
+m.eval()
 sample = torch.zeros((1, 1), dtype=torch.long)
 res = m.generate(sample, 500)
 print(res[0])
