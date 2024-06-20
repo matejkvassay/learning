@@ -96,3 +96,14 @@ print(f'v={v}, x={x}, v+x = {v + x}')
 x = torch.tensor([[1, 2, 4, 9], [4, 5, 6, 0]])
 v = torch.tensor([0, 5, 10, 15])
 print(f'X = {x}, v = {v} X+v = {x + v}')
+
+'''
+Pytorch MPS
+'''
+import torch
+if torch.backends.mps.is_available():
+    mps_device = torch.device("mps")
+    x = torch.ones(1, device=mps_device)
+    print (x)
+else:
+    print ("MPS device not found.")
