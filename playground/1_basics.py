@@ -96,3 +96,31 @@ print(f'v={v}, x={x}, v+x = {v + x}')
 x = torch.tensor([[1, 2, 4, 9], [4, 5, 6, 0]])
 v = torch.tensor([0, 5, 10, 15])
 print(f'X = {x}, v = {v} X+v = {x + v}')
+
+'''
+Triangular matrix column averaging
+'''
+a = torch.tril(torch.ones((3, 3)))
+a = a / torch.sum(a, 1, keepdim=True)
+b = torch.randint(0, 10, (3, 2)).float()
+c = a @ b
+print(a)
+print(b)
+print(c)
+
+'''
+Triangular normalized mtx with softmax 
+'''
+import torch
+from torch.nn import functional as F
+
+B, T, C = (4, 8, 2)
+x = torch.randn(B, T, C)
+tril = torch.tril(torch.ones(T, T))
+w = torch.zeros(T, T)
+w = w.masked_fill(tril == 0, float('-inf'))
+w = F.softmax(w, dim=1)  # trick - normalization function, divides 1nes into equal partials
+z = w @ x
+print(z)
+print(w.shape, x.shape)
+print(z.shape)
