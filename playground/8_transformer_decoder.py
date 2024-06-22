@@ -7,10 +7,10 @@ from torch.nn import functional as F
 DATASET_PATH = '/Users/matej/data/learning/skspr.txt'
 TRAIN_SPLIT = 0.95
 BLOCK_SIZE = 8
-BATCH_SIZE = 32
-EMB_DIM = 128
-N_ATT_HEADS = 16
-LR = 0.001
+BATCH_SIZE = 16
+EMB_DIM = 16
+N_ATT_HEADS = 4
+LR = 0.01
 N_EPOCHS = 10000
 PRINT_LOSS_AFTER = 100
 
@@ -64,14 +64,30 @@ class MultiHeadSelfAttention(nn.Module):
         self.att_heads = tuple(
             SelfAttentionHead(block_size, emb_dim, emb_dim // n_heads) for _ in range(n_heads)
         )
+        self.linear = nn.Linear(emb_dim, emb_dim)
 
     def forward(self, x):
         """
         :param x: shape B, T, E
         :return:  shape B, T, E ; E == n_H x H
         """
-        head_outputs = tuple(h(x) for h in self.att_heads)  # n_H x B,T,H
-        return torch.cat(head_outputs, dim=2)  # B, T, E
+        x = tuple(h(x) for h in self.att_heads)  # n_H x B,T,H
+        x = torch.cat(x, dim=2)  # B, T, E
+        return self.linear(x)
+
+
+class FeedForwardLayer(nn.Module):
+    def __init__(self, emb_dim, upscale_factor=4):
+        super().__init__()
+        z = upscale_factor * emb_dim
+        self.ffw = nn.Sequential(
+            nn.Linear(emb_dim, z),
+            nn.ReLU(emb_dim),
+            nn.Linear(z, emb_dim)  # ffw was 4x up-scaled in 2017 paper
+        )
+
+    def forward(self, x):
+        return self.ffw(x)
 
 
 class TransformerDecoderBlock(nn.Module):
@@ -80,9 +96,9 @@ class TransformerDecoderBlock(nn.Module):
         # layers
         self.tok_emb = nn.Embedding(vocab_size, emb_dim)
         self.pos_emb = nn.Embedding(block_size, emb_dim)
-        self.vocab_clf_head = nn.Linear(emb_dim, vocab_size)
         self.mh_att = MultiHeadSelfAttention(n_att_heads, block_size, emb_dim)
-
+        self.ffw = FeedForwardLayer(emb_dim)
+        self.vocab_clf_head = nn.Linear(emb_dim, vocab_size)
         self.register_buffer('pos', torch.arange(block_size))
 
     def forward(self, x: torch.Tensor, y: torch.Tensor | None = None):
@@ -93,7 +109,8 @@ class TransformerDecoderBlock(nn.Module):
         """
         x = self.tok_emb(x)  # B, T, V -> B, T, E
         x = x + self.pos_emb(self.pos)
-        x = self.mh_att(x)
+        x = x + self.mh_att(x)
+        x = x + self.ffw(x)
         y_hat = self.vocab_clf_head(x)  # shape B, T, V
 
         loss = None
@@ -106,7 +123,8 @@ class TransformerDecoderBlock(nn.Module):
         return y_hat, loss
 
 
-m = TransformerDecoderBlock(vocab_size=len(tokenizer), block_size=BLOCK_SIZE, n_att_heads=N_ATT_HEADS, emb_dim=EMB_DIM)
+m = TransformerDecoderBlock(vocab_size=len(tokenizer), block_size=BLOCK_SIZE, n_att_heads=N_ATT_HEADS,
+                            emb_dim=EMB_DIM)
 optim = torch.optim.AdamW(params=m.parameters(), lr=LR)
 
 for ep in range(N_EPOCHS):
