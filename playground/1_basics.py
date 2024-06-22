@@ -129,9 +129,34 @@ print(z.shape)
 Pytorch MPS
 '''
 import torch
+
 if torch.backends.mps.is_available():
     mps_device = torch.device("mps")
     x = torch.ones(1, device=mps_device)
-    print (x)
+    print(x)
 else:
-    print ("MPS device not found.")
+    print("MPS device not found.")
+
+'''
+Transpose with axes spec
+'''
+a = torch.zeros((8, 16, 32))
+print(a.shape)
+print(a.T.shape)  # soon to be deprecated
+print(a.mT.shape)  # alternative to transpose batched matrices
+print(a.transpose(-1, -2).shape)
+print(a.transpose(-2, -1).shape)  # transpose is invariant to order of axis params
+
+'''
+stack method to create batches 
+'''
+tensors = tuple(torch.zeros(32, 16) for _ in range(4))  # 32 features, 16 channels embedding
+stacked = torch.stack(tensors)
+print(stacked.shape)  # creates batch 4, 32, 16
+
+'''
+concatenate with cat() along embedding dimension (for multi-head attention concat)
+'''
+tensors = tuple(torch.zeros(4, 32, 16) for _ in range(4))  # 4 x tensor 8 batch size, 32 features, 16 channels embedding
+concatenated = torch.cat(tensors, dim=2)
+print(concatenated.shape)  # result 8, 32, 64 - embeddings concatenated to 4 x 16 channel
