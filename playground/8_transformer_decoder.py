@@ -3,16 +3,26 @@ from mkvlib.train_utils import rand_nwp_batch
 import torch
 from torch import nn
 from torch.nn import functional as F
+from tqdm import tqdm
+
+'''
+Notes
+- dropout applied after linear transforms and attention affinity computation
+- post-norms replaced with pre-norms  https://arxiv.org/pdf/2002.04745
+'''
 
 DATASET_PATH = '/Users/matej/data/learning/skspr.txt'
 TRAIN_SPLIT = 0.95
-BLOCK_SIZE = 8
+BLOCK_SIZE = 16
 BATCH_SIZE = 16
-EMB_DIM = 16
+EMB_DIM = 32
 N_ATT_HEADS = 4
+N_LAYERS = 2
 LR = 0.01
 N_EPOCHS = 10000
-PRINT_LOSS_AFTER = 100
+PRINT_LOSS_AFTER = 10
+FFW_UPSCALE_FACTOR = 4
+DROPOUT = 0.0
 
 with open(DATASET_PATH, 'r') as f:
     text = f.read().strip()
@@ -50,11 +60,12 @@ class LayerNorm(nn.Module):
 
 
 class SelfAttentionHead(nn.Module):
-    def __init__(self, block_size, dim_emb_in, dim_att_head_out):
+    def __init__(self, block_size, dim_emb_in, dim_att_head_out, dropout):
         super().__init__()
         self.ln_key = nn.Linear(dim_emb_in, dim_att_head_out, bias=False)
         self.ln_query = nn.Linear(dim_emb_in, dim_att_head_out, bias=False)
         self.ln_value = nn.Linear(dim_emb_in, dim_att_head_out, bias=False)
+        self.dropout = nn.Dropout(dropout)
 
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
         self.register_buffer('head_norm', 1 / torch.sqrt(torch.tensor(dim_att_head_out)))
@@ -69,18 +80,21 @@ class SelfAttentionHead(nn.Module):
         v = self.ln_value(x)  # B, T, E -> B, T, H
         att = q @ k.mT  # B,T,H @ B,H,T ->  B,T,T
         att = att / self.head_norm  # preserves variance of att head outputs to avoid softmax spiking at net init
-        att = att.masked_fill(self.tril == 0, float('-inf'))
+        # tril only for up to T (if T<max block size)
+        att = att.masked_fill(self.tril[:x.shape[1], :x.shape[1]] == 0, float('-inf'))
         att = F.softmax(att, dim=1)  # softmax along T dimension => for all tokens in context sum of logits == 1
+        att = self.dropout(att)
         return att @ v  # B,T,T @ B,T,H -> B,T,H
 
 
 class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, n_heads, block_size, emb_dim):
+    def __init__(self, n_heads, block_size, emb_dim, dropout):
         super().__init__()
         self.att_heads = tuple(
-            SelfAttentionHead(block_size, emb_dim, emb_dim // n_heads) for _ in range(n_heads)
+            SelfAttentionHead(block_size, emb_dim, emb_dim // n_heads, dropout=dropout) for _ in range(n_heads)
         )
         self.linear = nn.Linear(emb_dim, emb_dim)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         """
@@ -89,50 +103,65 @@ class MultiHeadSelfAttention(nn.Module):
         """
         x = tuple(h(x) for h in self.att_heads)  # n_H x B,T,H
         x = torch.cat(x, dim=2)  # B, T, E
-        return self.linear(x)
+        x = self.linear(x)
+        x = self.dropout(x)
+        return x
 
 
 class FeedForwardLayer(nn.Module):
-    def __init__(self, emb_dim, upscale_factor=4):
+    def __init__(self, emb_dim, upscale_factor=4, dropout=0.1):
         super().__init__()
         z = upscale_factor * emb_dim
         self.ffw = nn.Sequential(
             nn.Linear(emb_dim, z),
             nn.ReLU(emb_dim),
-            nn.Linear(z, emb_dim)  # ffw was 4x up-scaled in 2017 paper
+            nn.Linear(z, emb_dim),  # ffw was 4x up-scaled in 2017 paper,
+            nn.Dropout(dropout)
         )
 
     def forward(self, x):
         return self.ffw(x)
 
 
-class TransformerDecoderBlock(nn.Module):
-    def __init__(self, vocab_size, block_size, n_att_heads, emb_dim):
+class DecoderBlock(nn.Module):
+    def __init__(self, block_size, n_att_heads, emb_dim, ffw_upscale_factor, dropout):
         super().__init__()
-        # layers
-        self.tok_emb = nn.Embedding(vocab_size, emb_dim)
-        self.pos_emb = nn.Embedding(block_size, emb_dim)
-        self.mh_att = MultiHeadSelfAttention(n_att_heads, block_size, emb_dim)
-        self.ffw = FeedForwardLayer(emb_dim)
-        self.vocab_clf_head = nn.Linear(emb_dim, vocab_size)
-        self.register_buffer('pos', torch.arange(block_size))
-        self.pre_att_norm = LayerNorm(emb_dim)  # pre norm https://arxiv.org/pdf/2002.04745
+        self.mh_att = MultiHeadSelfAttention(n_att_heads, block_size, emb_dim, dropout=dropout)
+        self.ffw = FeedForwardLayer(emb_dim, upscale_factor=ffw_upscale_factor, dropout=dropout)
+        self.pre_att_norm = LayerNorm(emb_dim)
         self.pre_ffw_norm = LayerNorm(emb_dim)
-        self.pre_head_norm = LayerNorm(emb_dim)
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor | None = None):
+    def forward(self, x: torch.Tensor):
         """
-        :param x: shape B,T
-        :param y: shape B,T
-        :return: predicted token logits (shape B,T,V), loss (if param y not None)
+        :param x: shape B,T,E
         """
-        x = self.tok_emb(x)  # B, T, V -> B, T, E
-        x = x + self.pos_emb(self.pos)
         x = self.pre_att_norm(x)
         x = x + self.mh_att(x)
         x = self.pre_ffw_norm(x)
         x = x + self.ffw(x)
-        x = self.pre_head_norm(x)  # shape B, T, E
+        return x
+
+
+class Transformer(nn.Module):
+    def __init__(self, vocab_size, n_layers, block_size, n_att_heads, emb_dim, ffw_upscale_factor,
+                 dropout):
+        super().__init__()
+        self.register_buffer('pos', torch.arange(block_size))
+        self.tok_emb = nn.Embedding(vocab_size, emb_dim)
+        self.pos_emb = nn.Embedding(block_size, emb_dim)
+        decoders = [
+            DecoderBlock(block_size, n_att_heads, emb_dim, ffw_upscale_factor=ffw_upscale_factor, dropout=dropout) for _
+            in
+            range(n_layers)]
+        self.decoders = nn.Sequential(*decoders)
+        self.pre_head_norm = LayerNorm(emb_dim)
+        self.vocab_clf_head = nn.Linear(emb_dim, vocab_size)
+
+    def forward(self, x, y=None):
+        x = self.tok_emb(x)  # B, T, V -> B, T, E
+        x = x + self.pos_emb(self.pos[:x.shape[1]])
+        x = self.decoders(x)
+        x = self.pre_head_norm(x)
         y_hat = self.vocab_clf_head(x)  # shape B, T, V
 
         loss = None
@@ -142,14 +171,35 @@ class TransformerDecoderBlock(nn.Module):
             y = y.view(B * T)  # ce takes shape (V) for targets
             loss = F.cross_entropy(y_hat, y)
             y_hat = y_hat.view(B, T, V)
+
+        y_hat = F.softmax(y_hat, dim=-1)
         return y_hat, loss
 
 
-m = TransformerDecoderBlock(vocab_size=len(tokenizer), block_size=BLOCK_SIZE, n_att_heads=N_ATT_HEADS,
-                            emb_dim=EMB_DIM)
+@torch.no_grad()
+def generate(model, idx, max_new_tokens):
+    # idx is (B, T) array of indices in the current context
+    for _ in range(max_new_tokens):
+        # crop idx to the last block_size tokens
+        idx_cond = idx[:, -BLOCK_SIZE:]
+        # get the predictions
+        logits, loss = model(idx_cond)
+        # focus only on the last time step
+        logits = logits[:, -1, :]  # becomes (B, C)
+        # apply softmax to get probabilities
+        probs = F.softmax(logits, dim=-1)  # (B, C)
+        # sample from the distribution
+        idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
+        # append sampled index to the running sequence
+        idx = torch.cat((idx, idx_next), dim=1)  # (B, T+1)
+    return idx
+
+
+m = Transformer(vocab_size=len(tokenizer), n_layers=N_LAYERS, block_size=BLOCK_SIZE, n_att_heads=N_ATT_HEADS,
+                emb_dim=EMB_DIM, ffw_upscale_factor=FFW_UPSCALE_FACTOR, dropout=DROPOUT)
 optim = torch.optim.AdamW(params=m.parameters(), lr=LR)
 
-for ep in range(N_EPOCHS):
+for ep in tqdm(range(N_EPOCHS)):
     xb, yb = rand_nwp_batch(x_train, BATCH_SIZE, BLOCK_SIZE)
     _, loss = m(xb, yb)
     loss.backward()
@@ -157,3 +207,9 @@ for ep in range(N_EPOCHS):
     optim.zero_grad(set_to_none=True)
     if not ep % PRINT_LOSS_AFTER:
         print(f'ep {ep}: cross entropy loss train: {loss}')
+
+input = torch.zeros((1, 1), dtype=torch.long)
+input[0][0] = 11
+m.eval()
+res = generate(m, input, 500)
+print(tokenizer.inverse_transform(res[0].tolist()))
