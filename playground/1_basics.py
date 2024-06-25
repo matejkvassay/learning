@@ -160,3 +160,13 @@ concatenate with cat() along embedding dimension (for multi-head attention conca
 tensors = tuple(torch.zeros(4, 32, 16) for _ in range(4))  # 4 x tensor 8 batch size, 32 features, 16 channels embedding
 concatenated = torch.cat(tensors, dim=2)
 print(concatenated.shape)  # result 8, 32, 64 - embeddings concatenated to 4 x 16 channel
+
+'''
+3D mean with keep dim
+'''
+x = torch.rand((16, 256, 128))
+mean_kd = x.mean(dim=-1, keepdim=True)
+mean_not_kd = x.mean(dim=-1, keepdim=False)
+print(f'Mean with keepdim shape: {mean_kd.shape}')
+print(f'Mean without keepdim shape: {mean_not_kd.shape}')
+print(f'Diff from mean: {(x-mean_kd).shape} ')

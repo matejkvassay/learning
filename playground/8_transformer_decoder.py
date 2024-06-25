@@ -33,6 +33,22 @@ else:
     device = 'cpu'
 
 
+class LayerNorm(nn.Module):
+    def __init__(self, emb_dim, eps=1e-05):
+        super().__init__()
+        self.gamma = torch.ones(emb_dim)
+        self.beta = torch.zeros(emb_dim)
+        self.eps = eps
+
+    def forward(self, x: torch.Tensor):
+        """
+        :param x: shape B, T, C
+        """
+        mean = x.mean(dim=-1, keepdim=True)
+        var = x.var(dim=-1, keepdim=True, correction=0)
+        return ((x - mean) / torch.sqrt(var + self.eps)) * self.gamma + self.beta
+
+
 class SelfAttentionHead(nn.Module):
     def __init__(self, block_size, dim_emb_in, dim_att_head_out):
         super().__init__()
@@ -100,6 +116,9 @@ class TransformerDecoderBlock(nn.Module):
         self.ffw = FeedForwardLayer(emb_dim)
         self.vocab_clf_head = nn.Linear(emb_dim, vocab_size)
         self.register_buffer('pos', torch.arange(block_size))
+        self.pre_att_norm = LayerNorm(emb_dim)  # pre norm https://arxiv.org/pdf/2002.04745
+        self.pre_ffw_norm = LayerNorm(emb_dim)
+        self.pre_head_norm = LayerNorm(emb_dim)
 
     def forward(self, x: torch.Tensor, y: torch.Tensor | None = None):
         """
@@ -109,8 +128,11 @@ class TransformerDecoderBlock(nn.Module):
         """
         x = self.tok_emb(x)  # B, T, V -> B, T, E
         x = x + self.pos_emb(self.pos)
+        x = self.pre_att_norm(x)
         x = x + self.mh_att(x)
+        x = self.pre_ffw_norm(x)
         x = x + self.ffw(x)
+        x = self.pre_head_norm(x)  # shape B, T, E
         y_hat = self.vocab_clf_head(x)  # shape B, T, V
 
         loss = None
