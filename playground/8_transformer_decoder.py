@@ -5,10 +5,13 @@ from torch import nn
 from torch.nn import functional as F
 from tqdm import tqdm
 
+torch.manual_seed(1337)
+
 '''
 Notes
 - dropout applied after linear transforms and attention affinity computation
 - post-norms replaced with pre-norms  https://arxiv.org/pdf/2002.04745
+- dataset used: https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt
 '''
 
 
@@ -176,12 +179,12 @@ Training CFG
 
 DATASET_PATH = 'data/skspr.txt'
 TRAIN_SPLIT = 0.95
-BLOCK_SIZE = 32
-BATCH_SIZE = 32
-EMB_DIM = 128
-N_ATT_HEADS = 32
-N_LAYERS = 4
-LR = 0.001
+BLOCK_SIZE = 256
+BATCH_SIZE = 64
+EMB_DIM = 384
+N_ATT_HEADS = 6
+N_LAYERS = 6
+LR = 3e-4
 N_TRAINING_BATCHES = 5000
 N_EVAL_BATCHES = 20
 PRINT_LOSS_AFTER = 100
