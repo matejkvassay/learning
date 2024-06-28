@@ -155,9 +155,9 @@ def generate(model, idx, max_new_tokens):
     """
     for _ in range(max_new_tokens):
         # crop idx to the last block_size tokens
-        idx_cond = idx if idx.size(1) <= BLOCK_SIZE else idx[:, -BLOCK_SIZE:] # shape (B, <=BLOCK_SIZE)
+        idx_cond = idx if idx.size(1) <= BLOCK_SIZE else idx[:, -BLOCK_SIZE:]  # shape (B, <=BLOCK_SIZE)
         # get the predictions
-        logits, loss = model(idx_cond) # logits = shape (B, T, V)
+        logits, loss = model(idx_cond)  # logits = shape (B, T, V)
         # focus only on the last time step
         logits = logits[:, -1, :]  # becomes (B, V) - get probs for last timestep only
         # apply softmax to get probabilities
@@ -175,14 +175,15 @@ Training CFG
 
 DATASET_PATH = 'data/skspr.txt'
 TRAIN_SPLIT = 0.95
-BLOCK_SIZE = 32
+BLOCK_SIZE = 16
 BATCH_SIZE = 32
 EMB_DIM = 128
 N_ATT_HEADS = 32
 N_LAYERS = 4
 LR = 0.001
 N_TRAINING_BATCHES = 1000
-PRINT_LOSS_AFTER = 1
+N_EVAL_BATCHES = 20
+PRINT_LOSS_AFTER = 100
 FFW_UPSCALE_FACTOR = 4
 DROPOUT = 0.2
 
@@ -232,8 +233,27 @@ for ep in tqdm(range(N_TRAINING_BATCHES)):
     loss.backward()
     optim.step()
     optim.zero_grad(set_to_none=True)
-    if not ep % PRINT_LOSS_AFTER:
-        print(f'ep {ep}: cross entropy loss train: {loss}')
+
+    if not ep + 1 % PRINT_LOSS_AFTER or ep == 0:
+        with torch.no_grad():
+            losses_train = []
+            losses_val = []
+
+            for _ in range(N_EVAL_BATCHES):
+                xb, yb = rand_nwp_batch(x_train, BATCH_SIZE, BLOCK_SIZE)
+                xb = xb.to(device)
+                yb = yb.to(device)
+                x_valb, y_valb = rand_nwp_batch(x_test, BATCH_SIZE, BLOCK_SIZE)
+                x_valb = x_valb.to(device)
+                y_valb = y_valb.to(device)
+                _, train_loss = m.forward(xb, yb)
+                _, val_loss = m.forward(x_valb, y_valb)
+                losses_val.append(val_loss)
+                losses_train.append(train_loss)
+            val_loss = torch.mean(torch.Tensor(losses_val))
+            train_loss = torch.mean(torch.Tensor(losses_train))
+            print(f'ep {ep}: cross entropy loss dev: {train_loss}')
+            print(f'ep {ep}: cross entropy loss dev: {val_loss}')
 
 """
 Generate example
