@@ -11,18 +11,18 @@ Notes
 - post-norms replaced with pre-norms  https://arxiv.org/pdf/2002.04745
 '''
 
-DATASET_PATH = '/Users/matej/data/learning/skspr.txt'
+DATASET_PATH = 'data/skspr.txt'
 TRAIN_SPLIT = 0.95
-BLOCK_SIZE = 16
+BLOCK_SIZE = 32
 BATCH_SIZE = 16
-EMB_DIM = 32
-N_ATT_HEADS = 4
-N_LAYERS = 2
-LR = 0.01
-N_EPOCHS = 10000
-PRINT_LOSS_AFTER = 10
+EMB_DIM = 16
+N_ATT_HEADS = 8
+N_LAYERS = 1
+LR = 0.001
+N_EPOCHS = 10
+PRINT_LOSS_AFTER = 1
 FFW_UPSCALE_FACTOR = 4
-DROPOUT = 0.0
+DROPOUT = 0.05
 
 with open(DATASET_PATH, 'r') as f:
     text = f.read().strip()
@@ -36,19 +36,23 @@ x_test = torch.tensor(indices[train_size:])
 
 N_EMB = 16
 
-if torch.backends.mps.is_available():
+if torch.backends.cudnn.is_available():
+    device = torch.device("cuda")
+    print("using CUDA")
+elif torch.backends.mps.is_available():
     device = torch.device("mps")
     print('using MPS')
 else:
     device = 'cpu'
+    print('using CPU')
 
 
 class LayerNorm(nn.Module):
     def __init__(self, emb_dim, eps=1e-05):
         super().__init__()
-        self.gamma = torch.ones(emb_dim)
-        self.beta = torch.zeros(emb_dim)
-        self.eps = eps
+        self.gamma = nn.Parameter(torch.ones(emb_dim))
+        self.beta = nn.Parameter(torch.zeros(emb_dim))
+        self.register_buffer('eps', torch.tensor(eps))
 
     def forward(self, x: torch.Tensor):
         """
@@ -68,7 +72,7 @@ class SelfAttentionHead(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
-        self.register_buffer('head_norm', 1 / torch.sqrt(torch.tensor(dim_att_head_out)))
+        self.register_buffer('head_norm', 1 / torch.sqrt(torch.tensor(dim_att_head_out, dtype=torch.float32)))
 
     def forward(self, x):
         """
@@ -90,7 +94,7 @@ class SelfAttentionHead(nn.Module):
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self, n_heads, block_size, emb_dim, dropout):
         super().__init__()
-        self.att_heads = tuple(
+        self.att_heads = nn.ModuleList(
             SelfAttentionHead(block_size, emb_dim, emb_dim // n_heads, dropout=dropout) for _ in range(n_heads)
         )
         self.linear = nn.Linear(emb_dim, emb_dim)
@@ -197,10 +201,13 @@ def generate(model, idx, max_new_tokens):
 
 m = Transformer(vocab_size=len(tokenizer), n_layers=N_LAYERS, block_size=BLOCK_SIZE, n_att_heads=N_ATT_HEADS,
                 emb_dim=EMB_DIM, ffw_upscale_factor=FFW_UPSCALE_FACTOR, dropout=DROPOUT)
+m = m.to(device)
 optim = torch.optim.AdamW(params=m.parameters(), lr=LR)
 
 for ep in tqdm(range(N_EPOCHS)):
     xb, yb = rand_nwp_batch(x_train, BATCH_SIZE, BLOCK_SIZE)
+    xb = xb.to(device)
+    yb = yb.to(device)
     _, loss = m(xb, yb)
     loss.backward()
     optim.step()
@@ -208,7 +215,7 @@ for ep in tqdm(range(N_EPOCHS)):
     if not ep % PRINT_LOSS_AFTER:
         print(f'ep {ep}: cross entropy loss train: {loss}')
 
-input = torch.zeros((1, 1), dtype=torch.long)
+input = torch.zeros((1, 1), dtype=torch.long).to(device)
 input[0][0] = 11
 m.eval()
 res = generate(m, input, 500)
