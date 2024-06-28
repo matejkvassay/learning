@@ -234,7 +234,7 @@ for ep in tqdm(range(N_TRAINING_BATCHES)):
     optim.step()
     optim.zero_grad(set_to_none=True)
 
-    if not ep + 1 % PRINT_LOSS_AFTER or ep == 0:
+    if (not (ep + 1) % PRINT_LOSS_AFTER) or ep == 0:
         with torch.no_grad():
             losses_train = []
             losses_val = []
