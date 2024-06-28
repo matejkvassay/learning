@@ -266,5 +266,5 @@ Generate example
 input = torch.zeros((1, 1), dtype=torch.long).to(device)
 input[0][0] = 11
 m.eval()
-res = generate(m, input, 500)
+res = generate(m, input, 2000)
 print(tokenizer.inverse_transform(res[0].tolist()))
