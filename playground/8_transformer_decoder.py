@@ -175,13 +175,13 @@ Training CFG
 
 DATASET_PATH = 'data/skspr.txt'
 TRAIN_SPLIT = 0.95
-BLOCK_SIZE = 16
+BLOCK_SIZE = 32
 BATCH_SIZE = 32
 EMB_DIM = 128
 N_ATT_HEADS = 32
 N_LAYERS = 4
 LR = 0.001
-N_TRAINING_BATCHES = 1000
+N_TRAINING_BATCHES = 5000
 N_EVAL_BATCHES = 20
 PRINT_LOSS_AFTER = 100
 FFW_UPSCALE_FACTOR = 4
@@ -252,7 +252,7 @@ for ep in tqdm(range(N_TRAINING_BATCHES)):
                 losses_train.append(train_loss)
             val_loss = torch.mean(torch.Tensor(losses_val))
             train_loss = torch.mean(torch.Tensor(losses_train))
-            print(f'ep {ep}: cross entropy loss dev: {train_loss}')
+            print(f'ep {ep}: cross entropy loss train: {train_loss}')
             print(f'ep {ep}: cross entropy loss dev: {val_loss}')
 
 """
