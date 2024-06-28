@@ -240,6 +240,7 @@ for ep in tqdm(range(N_TRAINING_BATCHES)):
 
     if (not (ep + 1) % PRINT_LOSS_AFTER) or ep == 0:
         with torch.no_grad():
+            m.eval()
             losses_train = []
             losses_val = []
 
@@ -256,8 +257,14 @@ for ep in tqdm(range(N_TRAINING_BATCHES)):
                 losses_train.append(train_loss)
             val_loss = torch.mean(torch.Tensor(losses_val))
             train_loss = torch.mean(torch.Tensor(losses_train))
-            print(f'ep {ep}: cross entropy loss train: {train_loss}')
-            print(f'ep {ep}: cross entropy loss dev: {val_loss}')
+            print(f'ep {ep}: mean cross entropy loss train: {train_loss}')
+            print(f'ep {ep}: mean cross entropy loss dev: {val_loss}')
+            input = torch.zeros((1, 1), dtype=torch.long).to(device)
+            input[0][0] = 11
+            print('example generation:')
+            res = generate(m, input, 500)
+            print(tokenizer.inverse_transform(res[0].tolist()))
+            m.train()
 
 """
 Generate example
@@ -266,5 +273,5 @@ Generate example
 input = torch.zeros((1, 1), dtype=torch.long).to(device)
 input[0][0] = 11
 m.eval()
-res = generate(m, input, 2000)
+res = generate(m, input, 5000)
 print(tokenizer.inverse_transform(res[0].tolist()))
