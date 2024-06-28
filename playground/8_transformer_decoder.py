@@ -11,41 +11,6 @@ Notes
 - post-norms replaced with pre-norms  https://arxiv.org/pdf/2002.04745
 '''
 
-DATASET_PATH = 'data/skspr.txt'
-TRAIN_SPLIT = 0.95
-BLOCK_SIZE = 32
-BATCH_SIZE = 16
-EMB_DIM = 16
-N_ATT_HEADS = 8
-N_LAYERS = 1
-LR = 0.001
-N_EPOCHS = 10
-PRINT_LOSS_AFTER = 1
-FFW_UPSCALE_FACTOR = 4
-DROPOUT = 0.05
-
-with open(DATASET_PATH, 'r') as f:
-    text = f.read().strip()
-
-tokenizer = CharTokenizer()
-indices = tokenizer.fit_transform(text)
-
-train_size = int(TRAIN_SPLIT * len(indices))
-x_train = torch.tensor(indices[:train_size])
-x_test = torch.tensor(indices[train_size:])
-
-N_EMB = 16
-
-if torch.backends.cudnn.is_available():
-    device = torch.device("cuda")
-    print("using CUDA")
-elif torch.backends.mps.is_available():
-    device = torch.device("mps")
-    print('using MPS')
-else:
-    device = 'cpu'
-    print('using CPU')
-
 
 class LayerNorm(nn.Module):
     def __init__(self, emb_dim, eps=1e-05):
@@ -118,7 +83,7 @@ class FeedForwardLayer(nn.Module):
         z = upscale_factor * emb_dim
         self.ffw = nn.Sequential(
             nn.Linear(emb_dim, z),
-            nn.ReLU(emb_dim),
+            nn.ReLU(),
             nn.Linear(z, emb_dim),  # ffw was 4x up-scaled in 2017 paper,
             nn.Dropout(dropout)
         )
@@ -175,8 +140,8 @@ class Transformer(nn.Module):
             y = y.view(B * T)  # ce takes shape (V) for targets
             loss = F.cross_entropy(y_hat, y)
             y_hat = y_hat.view(B, T, V)
-
-        y_hat = F.softmax(y_hat, dim=-1)
+        else:
+            y_hat = F.softmax(y_hat, dim=-1)
         return y_hat, loss
 
 
@@ -199,12 +164,62 @@ def generate(model, idx, max_new_tokens):
     return idx
 
 
+"""
+Training CFG
+"""
+
+DATASET_PATH = 'data/skspr.txt'
+TRAIN_SPLIT = 0.95
+BLOCK_SIZE = 32
+BATCH_SIZE = 64
+EMB_DIM = 128
+N_ATT_HEADS = 32
+N_LAYERS = 4
+LR = 0.0001
+N_TRAINING_BATCHES = 10000
+PRINT_LOSS_AFTER = 1
+FFW_UPSCALE_FACTOR = 4
+DROPOUT = 0.2
+
+"""
+Device detection
+"""
+
+if torch.backends.cudnn.is_available():
+    device = torch.device("cuda")
+    print("using CUDA")
+elif torch.backends.mps.is_available():
+    device = torch.device("mps")
+    print('using MPS')
+else:
+    device = 'cpu'
+    print('using CPU')
+
+"""
+Dataset reading and tokenization
+"""
+
+with open(DATASET_PATH, 'r') as f:
+    text = f.read().strip()
+
+tokenizer = CharTokenizer()
+indices = tokenizer.fit_transform(text)
+
+train_size = int(TRAIN_SPLIT * len(indices))
+x_train = torch.tensor(indices[:train_size])
+x_test = torch.tensor(indices[train_size:])
+
+"""
+Model training
+"""
+
 m = Transformer(vocab_size=len(tokenizer), n_layers=N_LAYERS, block_size=BLOCK_SIZE, n_att_heads=N_ATT_HEADS,
                 emb_dim=EMB_DIM, ffw_upscale_factor=FFW_UPSCALE_FACTOR, dropout=DROPOUT)
 m = m.to(device)
 optim = torch.optim.AdamW(params=m.parameters(), lr=LR)
 
-for ep in tqdm(range(N_EPOCHS)):
+x_train = x_train.to(device)
+for ep in tqdm(range(N_TRAINING_BATCHES)):
     xb, yb = rand_nwp_batch(x_train, BATCH_SIZE, BLOCK_SIZE)
     xb = xb.to(device)
     yb = yb.to(device)
@@ -214,6 +229,10 @@ for ep in tqdm(range(N_EPOCHS)):
     optim.zero_grad(set_to_none=True)
     if not ep % PRINT_LOSS_AFTER:
         print(f'ep {ep}: cross entropy loss train: {loss}')
+
+"""
+Generate example
+"""
 
 input = torch.zeros((1, 1), dtype=torch.long).to(device)
 input[0][0] = 11
