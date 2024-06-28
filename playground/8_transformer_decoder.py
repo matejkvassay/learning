@@ -116,6 +116,7 @@ class Transformer(nn.Module):
                  dropout):
         super().__init__()
         self.register_buffer('pos', torch.arange(block_size))
+        self.register_buffer('block_size', torch.tensor(block_size))
         self.tok_emb = nn.Embedding(vocab_size, emb_dim)
         self.pos_emb = nn.Embedding(block_size, emb_dim)
         decoders = [
@@ -155,7 +156,7 @@ def generate(model, idx, max_new_tokens):
     """
     for _ in range(max_new_tokens):
         # crop idx to the last block_size tokens
-        idx_cond = idx if idx.size(1) <= BLOCK_SIZE else idx[:, -BLOCK_SIZE:]  # shape (B, <=BLOCK_SIZE)
+        idx_cond = idx if idx.size(1) <= m.block_size else idx[:, -m.block_size:]  # shape (B, <=BLOCK_SIZE)
         # get the predictions
         logits, loss = model(idx_cond)  # logits = shape (B, T, V)
         # focus only on the last time step
