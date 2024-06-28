@@ -127,6 +127,11 @@ class Transformer(nn.Module):
         self.vocab_clf_head = nn.Linear(emb_dim, vocab_size)
 
     def forward(self, x, y=None):
+        """
+        :param x: shape (B, T)
+        :param y: shape (B, T)
+        :return: tuple: (tensor shape (B, T, V), loss), loss is None if y not provided
+        """
         x = self.tok_emb(x)  # B, T, V -> B, T, E
         x = x + self.pos_emb(self.pos[:x.shape[1]])
         x = self.decoders(x)
@@ -140,23 +145,23 @@ class Transformer(nn.Module):
             y = y.view(B * T)  # ce takes shape (V) for targets
             loss = F.cross_entropy(y_hat, y)
             y_hat = y_hat.view(B, T, V)
-        else:
-            y_hat = F.softmax(y_hat, dim=-1)
         return y_hat, loss
 
 
 @torch.no_grad()
 def generate(model, idx, max_new_tokens):
-    # idx is (B, T) array of indices in the current context
+    """"
+    :param idx: (B, T)
+    """
     for _ in range(max_new_tokens):
         # crop idx to the last block_size tokens
-        idx_cond = idx[:, -BLOCK_SIZE:]
+        idx_cond = idx if idx.size(1) <= BLOCK_SIZE else idx[:, -BLOCK_SIZE:] # shape (B, <=BLOCK_SIZE)
         # get the predictions
-        logits, loss = model(idx_cond)
+        logits, loss = model(idx_cond) # logits = shape (B, T, V)
         # focus only on the last time step
-        logits = logits[:, -1, :]  # becomes (B, C)
+        logits = logits[:, -1, :]  # becomes (B, V) - get probs for last timestep only
         # apply softmax to get probabilities
-        probs = F.softmax(logits, dim=-1)  # (B, C)
+        probs = F.softmax(logits, dim=1)  # (B, V)
         # sample from the distribution
         idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
         # append sampled index to the running sequence
@@ -171,12 +176,12 @@ Training CFG
 DATASET_PATH = 'data/skspr.txt'
 TRAIN_SPLIT = 0.95
 BLOCK_SIZE = 32
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 EMB_DIM = 128
 N_ATT_HEADS = 32
 N_LAYERS = 4
-LR = 0.0001
-N_TRAINING_BATCHES = 10000
+LR = 0.001
+N_TRAINING_BATCHES = 1000
 PRINT_LOSS_AFTER = 1
 FFW_UPSCALE_FACTOR = 4
 DROPOUT = 0.2

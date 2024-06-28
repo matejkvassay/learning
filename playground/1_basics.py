@@ -169,4 +169,17 @@ mean_kd = x.mean(dim=-1, keepdim=True)
 mean_not_kd = x.mean(dim=-1, keepdim=False)
 print(f'Mean with keepdim shape: {mean_kd.shape}')
 print(f'Mean without keepdim shape: {mean_not_kd.shape}')
-print(f'Diff from mean: {(x-mean_kd).shape} ')
+print(f'Diff from mean: {(x - mean_kd).shape} ')
+
+'''
+3D mid dimension pluck out last item
+'''
+x = torch.ones((16, 8, 4))
+print(f'original shape: {x.shape}')
+x = x[:, -1, :]
+print(f'new shape: {x.shape}')
+
+x = torch.ones((16, 8, 4))
+print(f'original shape: {x.shape}')
+x = x[-1, :, :]
+print(f'new shape: {x.shape}')
