@@ -12,7 +12,7 @@ class SelfAttentionHead(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
-        self.register_buffer('head_norm', 1 / torch.sqrt(torch.tensor(dim_att_head_out, dtype=torch.float32)))
+        self.register_buffer('head_norm', torch.sqrt(torch.tensor(dim_att_head_out, dtype=torch.float32)))
 
     def forward(self, x):
         """
@@ -26,6 +26,6 @@ class SelfAttentionHead(nn.Module):
         att = att / self.head_norm  # preserves variance of att head outputs to avoid softmax spiking at net init
         # tril only for up to T (if T<max block size)
         att = att.masked_fill(self.tril[:x.shape[1], :x.shape[1]] == 0, float('-inf'))
-        att = F.softmax(att, dim=1)  # softmax along T dimension => for all tokens in context sum of logits == 1
+        att = F.softmax(att, dim=-1)  # softmax along last dim
         att = self.dropout(att)
         return att @ v  # B,T,T @ B,T,H -> B,T,H

@@ -37,16 +37,16 @@ class Transformer(nn.Module):
         x = x + self.pos_emb(self.pos[:x.shape[1]])
         x = self.decoders(x)
         x = self.pre_head_norm(x)
-        y_hat = self.vocab_clf_head(x)  # shape B, T, V
+        logits = self.vocab_clf_head(x)  # shape B, T, V
 
         loss = None
         if y is not None:
-            B, T, V = y_hat.shape
-            y_hat = y_hat.view(B * T, V)  # reduce dims, cross entropy func requires shape (B,V) for predictions
+            B, T, V = logits.shape
+            logits = logits.view(B * T, V)  # reduce dims, cross entropy func requires shape (B,V) for predictions
             y = y.view(B * T)  # ce takes shape (V) for targets
-            loss = F.cross_entropy(y_hat, y)
-            y_hat = y_hat.view(B, T, V)
-        return y_hat, loss
+            loss = F.cross_entropy(logits, y)
+            logits = logits.view(B, T, V)
+        return logits, loss
 
     @torch.no_grad()
     def generate(self, idx, max_new_tokens):

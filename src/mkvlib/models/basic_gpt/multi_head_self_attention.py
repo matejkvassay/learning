@@ -17,8 +17,8 @@ class MultiHeadSelfAttention(nn.Module):
         :param x: shape B, T, E
         :return:  shape B, T, E ; E == n_H x H
         """
-        x = tuple(h(x) for h in self.att_heads)  # n_H x B,T,H
-        x = torch.cat(x, dim=2)  # B, T, E
+        h_out = tuple(h(x) for h in self.att_heads)  # n_H x B,T,H
+        x = torch.cat(h_out, dim=-1)  # B, T, E
         x = self.linear(x)
         x = self.dropout(x)
         return x
