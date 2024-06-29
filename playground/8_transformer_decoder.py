@@ -5,8 +5,6 @@ from torch import nn
 from torch.nn import functional as F
 from tqdm import tqdm
 
-torch.manual_seed(1337)
-
 '''
 Notes
 - dropout applied after linear transforms and attention affinity computation
@@ -28,7 +26,8 @@ class LayerNorm(nn.Module):
         """
         mean = x.mean(dim=-1, keepdim=True)
         var = x.var(dim=-1, keepdim=True, correction=0)
-        return ((x - mean) / torch.sqrt(var + self.eps)) * self.gamma + self.beta
+        norm = (x - mean) / torch.sqrt(var + self.eps)
+        return norm * self.gamma + self.beta
 
 
 class SelfAttentionHead(nn.Module):
@@ -40,7 +39,7 @@ class SelfAttentionHead(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
-        self.register_buffer('head_norm', 1 / torch.sqrt(torch.tensor(dim_att_head_out, dtype=torch.float32)))
+        self.register_buffer('head_norm', torch.sqrt(torch.tensor(dim_att_head_out, dtype=torch.float32)))
 
     def forward(self, x):
         """
@@ -54,7 +53,7 @@ class SelfAttentionHead(nn.Module):
         att = att / self.head_norm  # preserves variance of att head outputs to avoid softmax spiking at net init
         # tril only for up to T (if T<max block size)
         att = att.masked_fill(self.tril[:x.shape[1], :x.shape[1]] == 0, float('-inf'))
-        att = F.softmax(att, dim=1)  # softmax along T dimension => for all tokens in context sum of logits == 1
+        att = F.softmax(att, dim=-1)  # softmax along last dim
         att = self.dropout(att)
         return att @ v  # B,T,T @ B,T,H -> B,T,H
 
@@ -73,8 +72,8 @@ class MultiHeadSelfAttention(nn.Module):
         :param x: shape B, T, E
         :return:  shape B, T, E ; E == n_H x H
         """
-        x = tuple(h(x) for h in self.att_heads)  # n_H x B,T,H
-        x = torch.cat(x, dim=2)  # B, T, E
+        h_out = tuple(h(x) for h in self.att_heads)  # n_H x B,T,H
+        x = torch.cat(h_out, dim=-1)  # B, T, E
         x = self.linear(x)
         x = self.dropout(x)
         return x
@@ -86,8 +85,8 @@ class FeedForwardLayer(nn.Module):
         z = upscale_factor * emb_dim
         self.ffw = nn.Sequential(
             nn.Linear(emb_dim, z),
-            nn.ReLU(),
-            nn.Linear(z, emb_dim),  # ffw was 4x up-scaled in 2017 paper,
+            nn.ReLU(),  # relu was applied on first linear transform only
+            nn.Linear(z, emb_dim),  # ffw was 4x up-scaled in 2017 paper
             nn.Dropout(dropout)
         )
 
@@ -140,16 +139,16 @@ class Transformer(nn.Module):
         x = x + self.pos_emb(self.pos[:x.shape[1]])
         x = self.decoders(x)
         x = self.pre_head_norm(x)
-        y_hat = self.vocab_clf_head(x)  # shape B, T, V
+        logits = self.vocab_clf_head(x)  # shape B, T, V
 
         loss = None
         if y is not None:
-            B, T, V = y_hat.shape
-            y_hat = y_hat.view(B * T, V)  # reduce dims, cross entropy func requires shape (B,V) for predictions
+            B, T, V = logits.shape
+            logits = logits.view(B * T, V)  # reduce dims, cross entropy func requires shape (B,V) for predictions
             y = y.view(B * T)  # ce takes shape (V) for targets
-            loss = F.cross_entropy(y_hat, y)
-            y_hat = y_hat.view(B, T, V)
-        return y_hat, loss
+            loss = F.cross_entropy(logits, y)
+            logits = logits.view(B, T, V)
+        return logits, loss
 
 
 @torch.no_grad()

@@ -137,9 +137,10 @@ if torch.backends.mps.is_available():
 else:
     print("MPS device not found.")
 
-'''
-Transpose with axes spec
-'''
+print(
+    '''
+    Transpose with axes spec
+    ''')
 a = torch.zeros((8, 16, 32))
 print(a.shape)
 print(a.T.shape)  # soon to be deprecated
