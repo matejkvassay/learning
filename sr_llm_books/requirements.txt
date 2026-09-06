@@ -1,0 +1,164 @@
+# -----------------------------------------------------------------------------
+# Core numerical / scientific Python
+# -----------------------------------------------------------------------------
+numpy
+scipy
+pandas
+polars
+pyarrow
+scikit-learn
+
+# -----------------------------------------------------------------------------
+# Jupyter / interactive research
+# -----------------------------------------------------------------------------
+jupyterlab
+notebook
+ipykernel
+ipywidgets
+marimo
+nbformat
+nbconvert
+
+# -----------------------------------------------------------------------------
+# Visualization
+# -----------------------------------------------------------------------------
+matplotlib
+seaborn
+plotly
+
+# -----------------------------------------------------------------------------
+# PyTorch
+# -----------------------------------------------------------------------------
+torch
+torchvision
+torchaudio
+torchmetrics
+torchinfo
+torchdata
+
+# -----------------------------------------------------------------------------
+# Tokenization / text processing
+# -----------------------------------------------------------------------------
+tiktoken
+tokenizers
+sentencepiece
+regex
+nltk
+spacy
+
+# -----------------------------------------------------------------------------
+# Hugging Face ecosystem
+# -----------------------------------------------------------------------------
+transformers
+datasets
+huggingface_hub
+accelerate
+evaluate
+safetensors
+peft
+trl
+optimum
+sentence-transformers
+
+# -----------------------------------------------------------------------------
+# Model architecture / training utilities
+# -----------------------------------------------------------------------------
+einops
+optuna
+hydra-core
+omegaconf
+thop
+
+# -----------------------------------------------------------------------------
+# Evaluation
+# -----------------------------------------------------------------------------
+rouge-score
+sacrebleu
+
+# -----------------------------------------------------------------------------
+# Experiment tracking / logging
+# -----------------------------------------------------------------------------
+tensorboard
+wandb
+mlflow
+
+# -----------------------------------------------------------------------------
+# Data access / serialization / utilities
+# -----------------------------------------------------------------------------
+tqdm
+psutil
+requests
+httpx
+fsspec
+s3fs
+blobfile
+pyyaml
+python-dotenv
+packaging
+rich
+
+# -----------------------------------------------------------------------------
+# API / model-service experimentation
+# -----------------------------------------------------------------------------
+openai
+
+# -----------------------------------------------------------------------------
+# Simple demos / apps
+# -----------------------------------------------------------------------------
+gradio
+chainlit
+
+# -----------------------------------------------------------------------------
+# RAG / vector search experimentation
+# -----------------------------------------------------------------------------
+faiss-cpu
+
+# -----------------------------------------------------------------------------
+# Multimodal experimentation
+# -----------------------------------------------------------------------------
+pillow
+opencv-python
+librosa
+soundfile
+
+# -----------------------------------------------------------------------------
+# Development / testing
+# -----------------------------------------------------------------------------
+pytest
+ruff
+black
+
+# -----------------------------------------------------------------------------
+# OPTIONAL / PLATFORM-SENSITIVE PACKAGES
+# Uncomment only when you actually need them.
+# These can depend strongly on OS, accelerator, CUDA/ROCm version, compiler,
+# and the installed PyTorch build.
+# -----------------------------------------------------------------------------
+
+# Quantization / low-memory fine-tuning
+# bitsandbytes
+
+# Large-scale / distributed training
+# deepspeed
+
+# Optimized attention / kernels
+# flash-attn
+# xformers
+
+# High-throughput LLM inference
+# vllm
+
+# llama.cpp Python bindings / GGUF experimentation
+# llama-cpp-python
+
+# Alternative ML frameworks sometimes used by examples or conversions
+# tensorflow
+# jax
+# flax
+
+# ONNX export / inference
+# onnx
+# onnxruntime
+
+# Distributed / cluster experimentation
+# ray
