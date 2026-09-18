@@ -1,16 +1,16 @@
+import torch
 from mkvlib.char_tokenizer import CharTokenizer
 from mkvlib.train_utils import rand_nwp_batch
-import torch
 from torch import nn
 from torch.nn import functional as F
 from tqdm import tqdm
 
-'''
+"""
 Notes
 - dropout applied after linear transforms and attention affinity computation
 - post-norms replaced with pre-norms  https://arxiv.org/pdf/2002.04745
 - dataset used: https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt
-'''
+"""
 
 
 class LayerNorm(nn.Module):
@@ -18,7 +18,7 @@ class LayerNorm(nn.Module):
         super().__init__()
         self.gamma = nn.Parameter(torch.ones(emb_dim))
         self.beta = nn.Parameter(torch.zeros(emb_dim))
-        self.register_buffer('eps', torch.tensor(eps))
+        self.register_buffer("eps", torch.tensor(eps))
 
     def forward(self, x: torch.Tensor):
         """
@@ -38,8 +38,10 @@ class SelfAttentionHead(nn.Module):
         self.ln_value = nn.Linear(dim_emb_in, dim_att_head_out, bias=False)
         self.dropout = nn.Dropout(dropout)
 
-        self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
-        self.register_buffer('head_norm', torch.sqrt(torch.tensor(dim_att_head_out, dtype=torch.float32)))
+        self.register_buffer("tril", torch.tril(torch.ones(block_size, block_size)))
+        self.register_buffer(
+            "head_norm", torch.sqrt(torch.tensor(dim_att_head_out, dtype=torch.float32))
+        )
 
     def forward(self, x):
         """
@@ -50,9 +52,11 @@ class SelfAttentionHead(nn.Module):
         q = self.ln_query(x)  # B, T, E -> B, T, H
         v = self.ln_value(x)  # B, T, E -> B, T, H
         att = q @ k.mT  # B,T,H @ B,H,T ->  B,T,T
-        att = att / self.head_norm  # preserves variance of att head outputs to avoid softmax spiking at net init
+        att = (
+            att / self.head_norm
+        )  # preserves variance of att head outputs to avoid softmax spiking at net init
         # tril only for up to T (if T<max block size)
-        att = att.masked_fill(self.tril[:x.shape[1], :x.shape[1]] == 0, float('-inf'))
+        att = att.masked_fill(self.tril[: x.shape[1], : x.shape[1]] == 0, float("-inf"))
         att = F.softmax(att, dim=-1)  # softmax along last dim
         att = self.dropout(att)
         return att @ v  # B,T,T @ B,T,H -> B,T,H
@@ -62,7 +66,8 @@ class MultiHeadSelfAttention(nn.Module):
     def __init__(self, n_heads, block_size, emb_dim, dropout):
         super().__init__()
         self.att_heads = nn.ModuleList(
-            SelfAttentionHead(block_size, emb_dim, emb_dim // n_heads, dropout=dropout) for _ in range(n_heads)
+            SelfAttentionHead(block_size, emb_dim, emb_dim // n_heads, dropout=dropout)
+            for _ in range(n_heads)
         )
         self.linear = nn.Linear(emb_dim, emb_dim)
         self.dropout = nn.Dropout(dropout)
@@ -87,7 +92,7 @@ class FeedForwardLayer(nn.Module):
             nn.Linear(emb_dim, z),
             nn.ReLU(),  # relu was applied on first linear transform only
             nn.Linear(z, emb_dim),  # ffw was 4x up-scaled in 2017 paper
-            nn.Dropout(dropout)
+            nn.Dropout(dropout),
         )
 
     def forward(self, x):
@@ -97,8 +102,12 @@ class FeedForwardLayer(nn.Module):
 class DecoderBlock(nn.Module):
     def __init__(self, block_size, n_att_heads, emb_dim, ffw_upscale_factor, dropout):
         super().__init__()
-        self.mh_att = MultiHeadSelfAttention(n_att_heads, block_size, emb_dim, dropout=dropout)
-        self.ffw = FeedForwardLayer(emb_dim, upscale_factor=ffw_upscale_factor, dropout=dropout)
+        self.mh_att = MultiHeadSelfAttention(
+            n_att_heads, block_size, emb_dim, dropout=dropout
+        )
+        self.ffw = FeedForwardLayer(
+            emb_dim, upscale_factor=ffw_upscale_factor, dropout=dropout
+        )
         self.pre_att_norm = LayerNorm(emb_dim)
         self.pre_ffw_norm = LayerNorm(emb_dim)
 
@@ -114,17 +123,31 @@ class DecoderBlock(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, vocab_size, n_layers, block_size, n_att_heads, emb_dim, ffw_upscale_factor,
-                 dropout):
+    def __init__(
+        self,
+        vocab_size,
+        n_layers,
+        block_size,
+        n_att_heads,
+        emb_dim,
+        ffw_upscale_factor,
+        dropout,
+    ):
         super().__init__()
-        self.register_buffer('pos', torch.arange(block_size))
-        self.register_buffer('block_size', torch.tensor(block_size))
+        self.register_buffer("pos", torch.arange(block_size))
+        self.register_buffer("block_size", torch.tensor(block_size))
         self.tok_emb = nn.Embedding(vocab_size, emb_dim)
         self.pos_emb = nn.Embedding(block_size, emb_dim)
         decoders = [
-            DecoderBlock(block_size, n_att_heads, emb_dim, ffw_upscale_factor=ffw_upscale_factor, dropout=dropout) for _
-            in
-            range(n_layers)]
+            DecoderBlock(
+                block_size,
+                n_att_heads,
+                emb_dim,
+                ffw_upscale_factor=ffw_upscale_factor,
+                dropout=dropout,
+            )
+            for _ in range(n_layers)
+        ]
         self.decoders = nn.Sequential(*decoders)
         self.pre_head_norm = LayerNorm(emb_dim)
         self.vocab_clf_head = nn.Linear(emb_dim, vocab_size)
@@ -136,7 +159,7 @@ class Transformer(nn.Module):
         :return: tuple: (tensor shape (B, T, V), loss), loss is None if y not provided
         """
         x = self.tok_emb(x)  # B, T, V -> B, T, E
-        x = x + self.pos_emb(self.pos[:x.shape[1]])
+        x = x + self.pos_emb(self.pos[: x.shape[1]])
         x = self.decoders(x)
         x = self.pre_head_norm(x)
         logits = self.vocab_clf_head(x)  # shape B, T, V
@@ -144,7 +167,9 @@ class Transformer(nn.Module):
         loss = None
         if y is not None:
             B, T, V = logits.shape
-            logits = logits.view(B * T, V)  # reduce dims, cross entropy func requires shape (B,V) for predictions
+            logits = logits.view(
+                B * T, V
+            )  # reduce dims, cross entropy func requires shape (B,V) for predictions
             y = y.view(B * T)  # ce takes shape (V) for targets
             loss = F.cross_entropy(logits, y)
             logits = logits.view(B, T, V)
@@ -153,12 +178,14 @@ class Transformer(nn.Module):
 
 @torch.no_grad()
 def generate(model, idx, max_new_tokens):
-    """"
+    """ "
     :param idx: (B, T)
     """
     for _ in range(max_new_tokens):
         # crop idx to the last block_size tokens
-        idx_cond = idx if idx.size(1) <= m.block_size else idx[:, -m.block_size:]  # shape (B, <=BLOCK_SIZE)
+        idx_cond = (
+            idx if idx.size(1) <= m.block_size else idx[:, -m.block_size :]
+        )  # shape (B, <=BLOCK_SIZE)
         # get the predictions
         logits, loss = model(idx_cond)  # logits = shape (B, T, V)
         # focus only on the last time step
@@ -176,7 +203,7 @@ def generate(model, idx, max_new_tokens):
 Training CFG
 """
 
-DATASET_PATH = 'data/skspr.txt'
+DATASET_PATH = "data/skspr.txt"
 TRAIN_SPLIT = 0.95
 BLOCK_SIZE = 256
 BATCH_SIZE = 64
@@ -199,16 +226,16 @@ if torch.backends.cudnn.is_available():
     print("using CUDA")
 elif torch.backends.mps.is_available():
     device = torch.device("mps")
-    print('using MPS')
+    print("using MPS")
 else:
-    device = 'cpu'
-    print('using CPU')
+    device = "cpu"
+    print("using CPU")
 
 """
 Dataset reading and tokenization
 """
 
-with open(DATASET_PATH, 'r') as f:
+with open(DATASET_PATH, "r") as f:
     text = f.read().strip()
 
 tokenizer = CharTokenizer()
@@ -222,8 +249,15 @@ x_test = torch.tensor(indices[train_size:])
 Model training
 """
 
-m = Transformer(vocab_size=len(tokenizer), n_layers=N_LAYERS, block_size=BLOCK_SIZE, n_att_heads=N_ATT_HEADS,
-                emb_dim=EMB_DIM, ffw_upscale_factor=FFW_UPSCALE_FACTOR, dropout=DROPOUT)
+m = Transformer(
+    vocab_size=len(tokenizer),
+    n_layers=N_LAYERS,
+    block_size=BLOCK_SIZE,
+    n_att_heads=N_ATT_HEADS,
+    emb_dim=EMB_DIM,
+    ffw_upscale_factor=FFW_UPSCALE_FACTOR,
+    dropout=DROPOUT,
+)
 m = m.to(device)
 optim = torch.optim.AdamW(params=m.parameters(), lr=LR)
 
@@ -256,11 +290,11 @@ for ep in tqdm(range(N_TRAINING_BATCHES)):
                 losses_train.append(train_loss)
             val_loss = torch.mean(torch.Tensor(losses_val))
             train_loss = torch.mean(torch.Tensor(losses_train))
-            print(f'ep {ep}: mean cross entropy loss train: {train_loss}')
-            print(f'ep {ep}: mean cross entropy loss dev: {val_loss}')
+            print(f"ep {ep}: mean cross entropy loss train: {train_loss}")
+            print(f"ep {ep}: mean cross entropy loss dev: {val_loss}")
             input = torch.zeros((1, 1), dtype=torch.long).to(device)
             input[0][0] = 11
-            print('example generation:')
+            print("example generation:")
             res = generate(m, input, 500)
             print(tokenizer.inverse_transform(res[0].tolist()))
             m.train()

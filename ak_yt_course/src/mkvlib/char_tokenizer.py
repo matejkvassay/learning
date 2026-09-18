@@ -3,8 +3,7 @@ from typing import Iterable
 
 
 class CharTokenizer:
-
-    def __init__(self, oov_char=' '):
+    def __init__(self, oov_char=" "):
         self.enc_map = defaultdict(self._get_new_idx)
         self.dec_map = None
         self.enc_idx_next = 0
@@ -12,18 +11,22 @@ class CharTokenizer:
 
     def fit_transform(self, text: str) -> tuple[int, ...]:
         if self.enc_map is dict:
-            raise RuntimeError('Cannot fit CharTokenizer twice, initialize new instance.')
+            raise RuntimeError(
+                "Cannot fit CharTokenizer twice, initialize new instance."
+            )
         char_indices = self._tokenize(text)
         self._freeze()
         return char_indices
 
     def transform(self, text: str) -> tuple[int, ...]:
         if isinstance(self.enc_map, defaultdict):
-            raise RuntimeError('You must first fit tokenizer using fit_transform() method.')
+            raise RuntimeError(
+                "You must first fit tokenizer using fit_transform() method."
+            )
         return self._tokenize(text)
 
     def inverse_transform(self, token_ids: Iterable[int]) -> str:
-        return ''.join(map(self._int_to_char, token_ids))
+        return "".join(map(self._int_to_char, token_ids))
 
     def __len__(self):
         return len(self.enc_map)

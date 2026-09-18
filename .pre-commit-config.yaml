@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.8
+    hooks:
+      # Basically just sort/clean imports.
+      # Don't lint the hell out of the code.
+      - id: ruff-check
+        args: [--fix, --select=I]
+        types_or: [python, pyi, jupyter]
+
+      # Autoformat .py files AND notebook cells
+      - id: ruff-format
+        types_or: [python, pyi, jupyter]

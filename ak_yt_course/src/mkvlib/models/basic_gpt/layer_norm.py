@@ -7,7 +7,7 @@ class LayerNorm(nn.Module):
         super().__init__()
         self.gamma = nn.Parameter(torch.ones(emb_dim))
         self.beta = nn.Parameter(torch.zeros(emb_dim))
-        self.register_buffer('eps', torch.tensor(eps))
+        self.register_buffer("eps", torch.tensor(eps))
 
     def forward(self, x: torch.Tensor):
         """

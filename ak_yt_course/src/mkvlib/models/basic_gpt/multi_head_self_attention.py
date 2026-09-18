@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+
 from mkvlib.models.basic_gpt.self_attention_head import SelfAttentionHead
 
 
@@ -7,7 +8,8 @@ class MultiHeadSelfAttention(nn.Module):
     def __init__(self, n_heads, block_size, emb_dim, dropout):
         super().__init__()
         self.att_heads = nn.ModuleList(
-            SelfAttentionHead(block_size, emb_dim, emb_dim // n_heads, dropout=dropout) for _ in range(n_heads)
+            SelfAttentionHead(block_size, emb_dim, emb_dim // n_heads, dropout=dropout)
+            for _ in range(n_heads)
         )
         self.linear = nn.Linear(emb_dim, emb_dim)
         self.dropout = nn.Dropout(dropout)

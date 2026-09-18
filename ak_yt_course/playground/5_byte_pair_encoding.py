@@ -1,12 +1,13 @@
-from sklearn.datasets import fetch_20newsgroups
-from collections import defaultdict
 import re
-from unidecode import unidecode
+from collections import defaultdict
 from time import perf_counter
+
+from sklearn.datasets import fetch_20newsgroups
+from unidecode import unidecode
 
 dataset = fetch_20newsgroups()
 
-text = '\n'.join(dataset.data)
+text = "\n".join(dataset.data)
 
 
 def normalize(text):
@@ -15,7 +16,7 @@ def normalize(text):
     return text
 
 
-def pre_split(text, pattern=r'\W+'):
+def pre_split(text, pattern=r"\W+"):
     tokens = re.split(pattern, text)
     for i in range(len(tokens)):
         tokens[i] = tuple(tokens[i])
@@ -35,10 +36,10 @@ def find_merge_rule(tokens):
     freq = defaultdict(int)
     for tok in tokens:
         for i in range(0, len(tok) - 1):
-            freq[tok[i: i + 2]] += 1
+            freq[tok[i : i + 2]] += 1
     mr = max(freq.items(), key=lambda x: x[1])[0]
     e = perf_counter()
-    print(f'Merge rule search time: {e - s}s')
+    print(f"Merge rule search time: {e - s}s")
     return mr
 
 
@@ -52,19 +53,19 @@ def apply_merge_rule(tokens, merge_rule):
             if last_merged is True:
                 last_merged = False
                 continue
-            if tuple(tok[j:j + 2]) == merge_rule:
+            if tuple(tok[j : j + 2]) == merge_rule:
                 last_merged = True
                 new_tok.append(tok[j] + tok[j + 1])
             else:
                 new_tok.append(tok[j])
         tokens[i] = tuple(new_tok)
     e = perf_counter()
-    print(f'Merge rule application time: {e - s}s')
+    print(f"Merge rule application time: {e - s}s")
     return tokens
 
 
 text = normalize(text)
-tokens = pre_split(text, pattern=' ')
+tokens = pre_split(text, pattern=" ")
 chars, char_freq = unique_chars(text)
 merge_rules = []
 VOCAB_SIZE = 1000

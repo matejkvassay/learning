@@ -1,6 +1,7 @@
+import torch
+
 from mkvlib.activation import sigmoid
 from mkvlib.loss import mse
-import torch
 
 
 class LogisticRegression:

@@ -1,8 +1,8 @@
 import torch
+from mkvlib.models.logistic_regression import LogisticRegression
+from mkvlib.normalize import normalize_zscore
 from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
-from mkvlib.normalize import normalize_zscore
-from mkvlib.models.logistic_regression import LogisticRegression
 
 RAND_SEED = 124
 NORMALIZATION = 0  # 0 = column -wise, 1 = row-wise
@@ -12,7 +12,9 @@ LEARNING_RATE = 0.001
 dataset = load_breast_cancer()
 features = dataset.data
 targets = dataset.target
-X_train, X_test, y_train, y_test = train_test_split(features, targets, random_state=RAND_SEED)
+X_train, X_test, y_train, y_test = train_test_split(
+    features, targets, random_state=RAND_SEED
+)
 
 X_train = torch.from_numpy(X_train).to(torch.float32)
 y_train = torch.from_numpy(y_train).to(torch.float32)

@@ -1,20 +1,20 @@
+import torch
 from mkvlib.char_tokenizer import CharTokenizer
 from mkvlib.train_utils import rand_nwp_batch
-import torch
 from torch import nn
 from torch.nn import functional as F
 
-DATASET_PATH = '/Users/A109096228/data/sample_dataset.txt'
-OOV_CHAR = ' '
+DATASET_PATH = "/Users/A109096228/data/sample_dataset.txt"
+OOV_CHAR = " "
 TRAIN_SPLIT = 0.95
 CONTEXT_LENGTH = 4
 BATCH_SIZE = 32
 N_EPOCHS = 1000
 
-with open(DATASET_PATH, 'r') as f:
+with open(DATASET_PATH, "r") as f:
     text = f.read().strip()
 
-tokenizer = CharTokenizer(' ')
+tokenizer = CharTokenizer(" ")
 indices = tokenizer.fit_transform(text)
 
 train_size = int(TRAIN_SPLIT * len(indices))
@@ -28,7 +28,9 @@ class BigramModel(nn.Module):
         self.emb = nn.Embedding(num_embeddings=vocab_size, embedding_dim=vocab_size)
 
     def forward(self, idx, targets=None):
-        logits = self.emb(idx)  # dims: (Batch size , Time (context) 8, Channel (vocab size))
+        logits = self.emb(
+            idx
+        )  # dims: (Batch size , Time (context) 8, Channel (vocab size))
         if targets is None:
             return logits, None
         B, T, C = logits.shape
@@ -56,7 +58,7 @@ for ep in range(N_EPOCHS):
     optim.zero_grad(set_to_none=True)
     loss.backward()
     optim.step()
-    print(f'ep: {ep} loss:{loss.item()}')
+    print(f"ep: {ep} loss:{loss.item()}")
 
 m.eval()
 sample = torch.zeros((1, 1), dtype=torch.long)

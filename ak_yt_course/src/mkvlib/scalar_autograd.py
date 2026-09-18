@@ -1,13 +1,13 @@
 import math
 
 """
-Inspired by: 
+Inspired by:
 https://github.com/karpathy/micrograd
 """
 
 
 class Scalar:
-    def __init__(self, val, inputs=(), op='na'):
+    def __init__(self, val, inputs=(), op="na"):
         self.val = val
         self.inputs = inputs
         self.op = op
@@ -57,7 +57,7 @@ class Scalar:
     def __mul__(self, other):
         if not isinstance(other, Scalar):
             other = Scalar(other)
-        out = Scalar(self.val * other.val, (self, other), '*')
+        out = Scalar(self.val * other.val, (self, other), "*")
 
         def b():
             self.grad += other.val * out.grad
@@ -68,7 +68,7 @@ class Scalar:
 
     def __pow__(self, power, modulo=None):
         assert isinstance(power, (int, float))
-        out = Scalar(self.val ** power, (self,), f'**{power}')
+        out = Scalar(self.val**power, (self,), f"**{power}")
 
         def b():
             self.grad += out.grad * (power * (self.val ** (power - 1)))
@@ -77,7 +77,7 @@ class Scalar:
         return out
 
     def exp(self):
-        out = Scalar(math.exp(self.val), (self,), 'exp')
+        out = Scalar(math.exp(self.val), (self,), "exp")
 
         def b():
             self.grad += out.val * out.grad
@@ -91,7 +91,7 @@ class Scalar:
 
     def relu(self):
         val = 0.0 if self.val < 0 else self.val
-        out = Scalar(val, (self,), 'relu')
+        out = Scalar(val, (self,), "relu")
 
         def b():
             self.grad += int(out.val > 0) * out.grad
@@ -114,11 +114,11 @@ class Scalar:
         return other - self
 
     def __truediv__(self, other):
-        return self * (other ** -1)
+        return self * (other**-1)
 
     def __rmul__(self, other):
         other = Scalar(other)
         return other.__mul__(self)
 
     def __repr__(self):
-        return f'{round(self.val, 4)}|{round(self.grad, 4)}|{self.op}'
+        return f"{round(self.val, 4)}|{round(self.grad, 4)}|{self.op}"

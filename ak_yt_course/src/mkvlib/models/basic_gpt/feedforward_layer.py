@@ -9,7 +9,7 @@ class FeedForwardLayer(nn.Module):
             nn.Linear(emb_dim, z),
             nn.ReLU(),  # relu was applied on first linear transform only
             nn.Linear(z, emb_dim),  # ffw was 4x up-scaled in 2017 paper
-            nn.Dropout(dropout)
+            nn.Dropout(dropout),
         )
 
     def forward(self, x):
